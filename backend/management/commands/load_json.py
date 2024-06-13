@@ -1,142 +1,106 @@
-# your_app/management/commands/import_portfolio.py
-
 import json
 import os
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
-from backend.models import Social, Project, Service, Experience, Education, Language, Framework, Other, Resume, \
-    UserProfile
-
+from backend.models import UserProfile, Social, Project, Service, Experience, Education, Language, Framework, Other, Resume
 
 class Command(BaseCommand):
-    help = 'Import portfolio data from portfolio.json'
+    help = 'Load profile data from JSON file'
 
     def handle(self, *args, **kwargs):
+        # Load data from JSON file
         file_path = os.path.join(os.path.dirname(__file__), 'portfolio.json')
-
-        with open(file_path, 'r', encoding='utf-8') as file:
+        with open(file_path, 'r') as file:
             data = json.load(file)
 
-        user, created = User.objects.get_or_create(username=data['name'])
-
-        profile_data = {
-            'header_tagline_one': data['headerTaglineOne'],
-            'header_tagline_two': data['headerTaglineTwo'],
-            'header_tagline_three': data['headerTaglineThree'],
-            'header_tagline_four': data['headerTaglineFour'],
-            'show_cursor': data['showCursor'],
-            'show_blog': data['showBlog'],
-            'dark_mode': data['darkMode'],
-            'show_resume': data['showResume']
-        }
-
-        profile, created = UserProfile.objects.get_or_create(user=user, defaults=profile_data)
-
-        if not created:
-            for key, value in profile_data.items():
-                setattr(profile, key, value)
-            profile.save()
-
-        resume_data = {
-            'user': user,
-            'tagline': data['resume']['tagline'],
-            'description': data['resume']['description'],
-            'about_para': data['aboutpara'],
-        }
-
-        resume, created = Resume.objects.get_or_create(user=user, defaults=resume_data)
-
-        if not created:
-            for key, value in resume_data.items():
-                setattr(resume, key, value)
-            resume.save()
-
-        self.import_socials(data['socials'], user)
-        self.import_projects(data['projects'], user)
-        self.import_services(data['services'], user)
-        self.import_experiences(data['resume']['experiences'], user)
-        self.import_education(data['resume']['education'], user)
-        self.import_languages(data['resume']['languages'], user)
-        self.import_frameworks(data['resume']['frameworks'], user)
-        self.import_others(data['resume']['others'], user)
-
-        self.stdout.write(self.style.SUCCESS('Successfully imported portfolio data'))
-
-    def import_socials(self, socials, user):
-        for social in socials:
-            Social.objects.update_or_create(
-                id=int(social['id']),
-                defaults={
-                    'title': social['title'],
-                    'link': social['link'],
-                    'user': user
-                }
-            )
-
-    def import_projects(self, projects, user):
-        for project in projects:
-            Project.objects.update_or_create(
-                id=int(project['id']),
-                defaults={
-                    'title': project['title'],
-                    'description': project['description'],
-                    'image_src': project['imageSrc'],
-                    'url': project['url'],
-                    'user': user
-                }
-            )
-
-    def import_services(self, services, user):
-        for service in services:
-            Service.objects.update_or_create(
-                id=int(service['id']),
-                defaults={
-                    'title': service['title'],
-                    'description': service['description'],
-                    'user': user
-                }
-            )
-
-    def import_experiences(self, experiences, user):
-        for experience in experiences:
-            Experience.objects.update_or_create(
-                id=experience['id'],
-                defaults={
-                    'dates': experience['dates'],
-                    'type': experience['type'],
-                    'position': experience['position'],
-                    'bullets': experience['bullets'],
-                    'user': user
-                }
-            )
-
-    def import_education(self, education, user):
-        Education.objects.update_or_create(
+        # Create User and UserProfile
+        user, created = User.objects.get_or_create(id=1)
+        user_profile, created = UserProfile.objects.get_or_create(
             user=user,
-            defaults={
-                'university_name': education['universityName'],
-                'university_date': education['universityDate'],
-                'university_para': education['universityPara']
-            }
+            header_tagline_one=data['headerTaglineOne'],
+            header_tagline_two=data['headerTaglineTwo'],
+            header_tagline_three=data['headerTaglineThree'],
+            header_tagline_four=data['headerTaglineFour'],
+            show_cursor=data['showCursor'],
+            show_blog=data['showBlog'],
+            dark_mode=data['darkMode'],
+            show_resume=data['showResume'],
+            about_para=data['aboutpara']
         )
 
-    def import_languages(self, languages, user):
-        for language in languages:
-            Language.objects.update_or_create(
-                name=language,
-                defaults={'user': user}
+        # Create Social links
+        for social in data['socials']:
+            Social.objects.create(
+                user_profile=user_profile,
+                title=social['title'],
+                link=social['link']
             )
 
-    def import_frameworks(self, frameworks, user):
-        for framework in frameworks:
-            Framework.objects.update_or_create(
-                name=framework,
-                defaults={'user': user}
+        # Create Projects
+        for project in data['projects']:
+            Project.objects.create(
+                user_profile=user_profile,
+                title=project['title'],
+                description=project['description'],
+                image_src=project['imageSrc'],
+                url=project['url']
             )
 
-    def import_others(self, others, user):
-        for other in others:
-            Other.objects.update_or_create(
-                name=other,
-                defaults={'user': user}
+        # Create Services
+        for service in data['services']:
+            Service.objects.create(
+                user_profile=user_profile,
+                title=service['title'],
+                description=service['description']
             )
+
+        # Create Resume
+        resume_data = data['resume']
+        resume, created = Resume.objects.get_or_create(
+            user_profile=user_profile,
+            tagline=resume_data['tagline'],
+            description=resume_data['description'],
+            about_para=data['aboutpara']
+        )
+
+        # Create Experiences
+        for experience in resume_data['experiences']:
+            Experience.objects.create(
+                resume=resume,
+                dates=experience['dates'],
+                type=experience['type'],
+                position=experience['position'],
+                bullets=experience['bullets']
+            )
+
+        # Create Education
+        education_data = resume_data['education']
+        Education.objects.create(
+            resume=resume,
+            university_name=education_data['universityName'],
+            university_date=education_data['universityDate'],
+            university_para=education_data['universityPara']
+        )
+
+        # Create Languages
+        for language in resume_data['languages']:
+            Language.objects.create(
+                resume=resume,
+                name=language
+            )
+
+        # Create Frameworks
+        for framework in resume_data['frameworks']:
+            Framework.objects.create(
+                resume=resume,
+                name=framework
+            )
+
+        # Create Others
+        for other in resume_data['others']:
+            Other.objects.create(
+                resume=resume,
+                name=other
+            )
+
+        self.stdout.write(self.style.SUCCESS('Successfully loaded profile data'))
